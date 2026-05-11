@@ -1,0 +1,616 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Attendance Management System API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: users
+    description: User management
+  - name: attendance
+    description: Attendance punch in/out
+  - name: overtime
+    description: Overtime requests
+  - name: reports
+    description: Attendance reports
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ── Users ────────────────────────────────────────────────────────────────────
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
+  /users/me/sync:
+    post:
+      operationId: syncMe
+      tags: [users]
+      summary: Sync / upsert user record from Clerk identity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSync"
+      responses:
+        "200":
+          description: Synced user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "403":
+          description: Forbidden
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a single user (admin/manager)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+
+  /users/{userId}/role:
+    patch:
+      operationId: updateUserRole
+      tags: [users]
+      summary: Update a user role (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ── Attendance ────────────────────────────────────────────────────────────────
+
+  /attendance:
+    get:
+      operationId: listAttendance
+      tags: [attendance]
+      summary: List attendance records (scoped by role)
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: date
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+        - name: endDate
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attendance list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendancePage"
+
+  /attendance/punch-in:
+    post:
+      operationId: punchIn
+      tags: [attendance]
+      summary: Employee punch in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PunchInInput"
+      responses:
+        "201":
+          description: Attendance record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+        "409":
+          description: Already punched in today
+
+  /attendance/punch-out:
+    post:
+      operationId: punchOut
+      tags: [attendance]
+      summary: Employee punch out
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PunchOutInput"
+      responses:
+        "200":
+          description: Attendance record updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+        "404":
+          description: No open punch-in found
+
+  /attendance/today:
+    get:
+      operationId: getTodayAttendance
+      tags: [attendance]
+      summary: Get today's attendance record for current user
+      responses:
+        "200":
+          description: Today's attendance (null if not punched in yet)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceOrNull"
+
+  /attendance/{id}:
+    get:
+      operationId: getAttendance
+      tags: [attendance]
+      summary: Get a single attendance record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attendance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+        "404":
+          description: Not found
+
+  /attendance/{id}/validate:
+    patch:
+      operationId: validateAttendance
+      tags: [attendance]
+      summary: Mark attendance as valid or invalid (admin/manager)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceValidation"
+      responses:
+        "200":
+          description: Updated attendance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceRecord"
+
+  # ── Overtime ──────────────────────────────────────────────────────────────────
+
+  /overtime:
+    get:
+      operationId: listOvertime
+      tags: [overtime]
+      summary: List overtime requests (scoped by role)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+        - name: userId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Overtime requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OvertimeRequest"
+
+    post:
+      operationId: createOvertime
+      tags: [overtime]
+      summary: Submit an overtime request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OvertimeInput"
+      responses:
+        "201":
+          description: Overtime request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OvertimeRequest"
+
+  /overtime/{id}/review:
+    patch:
+      operationId: reviewOvertime
+      tags: [overtime]
+      summary: Approve or reject an overtime request (admin/manager)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OvertimeReview"
+      responses:
+        "200":
+          description: Updated overtime request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OvertimeRequest"
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────────
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [reports]
+      summary: Aggregated attendance stats for the current user (role-scoped)
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /reports/daily:
+    get:
+      operationId: getDailyReport
+      tags: [reports]
+      summary: Daily attendance report (role-scoped)
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: integer
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Daily report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DailyReport"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    # ── Users ──────────────────────────────────────────────────────────────────
+
+    User:
+      type: object
+      required: [id, clerkId, email, role, name, createdAt]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [employee, manager, admin]
+        department:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    UserSync:
+      type: object
+      required: [clerkId, email, name]
+      properties:
+        clerkId:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+
+    UserRoleUpdate:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [employee, manager, admin]
+
+    # ── Attendance ─────────────────────────────────────────────────────────────
+
+    AttendanceRecord:
+      type: object
+      required: [id, userId, punchInTime, status, validationStatus, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        punchInTime:
+          type: string
+        punchOutTime:
+          type: ["string", "null"]
+        selfieUrl:
+          type: ["string", "null"]
+        latitude:
+          type: ["number", "null"]
+        longitude:
+          type: ["number", "null"]
+        workingHours:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [incomplete, completed]
+        validationStatus:
+          type: string
+          enum: [pending, valid, invalid]
+        remarks:
+          type: ["string", "null"]
+        overtimeRequested:
+          type: boolean
+        createdAt:
+          type: string
+
+    AttendancePage:
+      type: object
+      required: [records, total, page, limit]
+      properties:
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRecord"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    AttendanceOrNull:
+      type: object
+      required: [record]
+      properties:
+        record:
+          oneOf:
+            - $ref: "#/components/schemas/AttendanceRecord"
+            - type: "null"
+
+    PunchInInput:
+      type: object
+      required: [selfieBase64, latitude, longitude]
+      properties:
+        selfieBase64:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    PunchOutInput:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        selfieBase64:
+          type: ["string", "null"]
+
+    AttendanceValidation:
+      type: object
+      required: [validationStatus]
+      properties:
+        validationStatus:
+          type: string
+          enum: [valid, invalid]
+        remarks:
+          type: ["string", "null"]
+
+    # ── Overtime ───────────────────────────────────────────────────────────────
+
+    OvertimeRequest:
+      type: object
+      required: [id, userId, attendanceId, hoursRequested, status, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        user:
+          $ref: "#/components/schemas/User"
+        attendanceId:
+          type: integer
+        hoursRequested:
+          type: number
+        reason:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        reviewedBy:
+          type: ["integer", "null"]
+        reviewNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    OvertimeInput:
+      type: object
+      required: [attendanceId, hoursRequested]
+      properties:
+        attendanceId:
+          type: integer
+        hoursRequested:
+          type: number
+        reason:
+          type: ["string", "null"]
+
+    OvertimeReview:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, rejected]
+        reviewNote:
+          type: ["string", "null"]
+
+    # ── Dashboard / Reports ────────────────────────────────────────────────────
+
+    DashboardStats:
+      type: object
+      required: [totalDays, completedDays, incompleteDays, pendingOvertimeCount, avgWorkingHours, pendingValidationCount]
+      properties:
+        totalDays:
+          type: integer
+        completedDays:
+          type: integer
+        incompleteDays:
+          type: integer
+        pendingOvertimeCount:
+          type: integer
+        avgWorkingHours:
+          type: number
+        pendingValidationCount:
+          type: integer
+
+    DailyReport:
+      type: object
+      required: [records, total, date]
+      properties:
+        date:
+          type: string
+        records:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceRecord"
+        total:
+          type: integer
