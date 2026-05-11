@@ -45,6 +45,15 @@ app.get('/api/healthz', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Root Route ──────────────────────────────────────────────
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Attendance Management System API', 
+    version: '1.0.0',
+    status: 'online'
+  });
+});
+
 // ── API Routes ────────────────────────────────────────────
 app.use('/api/auth',       authRoutes);
 app.use('/api/users',      userRoutes);
