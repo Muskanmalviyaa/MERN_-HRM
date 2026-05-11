@@ -21,8 +21,14 @@ app.set('trust proxy', 1); // Support for Render/Vercel proxies
 
 // ── Security ──────────────────────────────────────────────
 app.use(helmet());
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://mern-hrm-2.onrender.com',
+  process.env.CLIENT_ORIGIN
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  origin: allowedOrigins,
   credentials: true,
 }));
 
