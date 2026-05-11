@@ -17,6 +17,7 @@ import overtimeRoutes from './routes/overtime.routes.js';
 import reportsRoutes from './routes/reports.routes.js';
 
 const app = express();
+app.set('trust proxy', 1); // Support for Render/Vercel proxies
 
 // ── Security ──────────────────────────────────────────────
 app.use(helmet());
